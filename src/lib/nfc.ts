@@ -1,25 +1,3 @@
-interface NDEFRecord {
-  recordType: string;
-  mediaType?: string;
-  data: DataView | Uint8Array;
-  encoding?: string;
-  lang?: string;
-}
-
-interface NDEFReadingEvent {
-  serialNumber?: string;
-  records: NDEFRecord[];
-  id?: string;
-  techType?: string;
-  maxSize?: number;
-}
-
-interface NDEFReader {
-  scan(options?: { signal?: AbortSignal }): Promise<NDEFReadingEvent>;
-  onreading?: (event: NDEFReadingEvent) => void;
-  onreadingerror?: (event: Event) => void;
-}
-
 interface NDEFRecordInit {
   recordType: string;
   mediaType?: string;
@@ -29,13 +7,38 @@ interface NDEFRecordInit {
 }
 
 interface NDEFWriter {
-  write(records: NDEFRecordInit | NDEFRecordInit[], options?: { signal?: AbortSignal }): Promise<void>;
+  write(message: any, options?: { overwrite?: boolean; signal?: AbortSignal }): Promise<void>;
+}
+
+interface NDEFReadingEvent extends Event {
+  serialNumber?: string;
+  message: {
+    records: Array<{
+      recordType: string;
+      mediaType?: string;
+      id?: string;
+      data: DataView;
+      encoding?: string;
+      lang?: string;
+    }>;
+  };
+}
+
+interface NFCReader {
+  scan(options?: { signal?: AbortSignal }): Promise<void>;
+  write(
+    message: { records: NDEFRecordInit[] },
+    options?: { overwrite?: boolean; signal?: AbortSignal }
+  ): Promise<void>;
+  makeReadOnly(options?: { signal?: AbortSignal }): Promise<void>;
+  onreading: ((event: NDEFReadingEvent) => void) | null;
+  onreadingerror: ((event: Event) => void) | null;
 }
 
 declare global {
   interface Window {
     NDEFReader: {
-      new (): NDEFReader;
+      new (): NFCReader;
     };
     NDEFWriter: {
       new (): NDEFWriter;
@@ -89,37 +92,53 @@ export async function readNFC(): Promise<NFCData> {
   }
 
   const reader = new window.NDEFReader();
-  
-  try {
-    const tag = await reader.scan();
-    
-    const records: NFCRecord[] = [];
-    for (const record of tag.records) {
-      let data: Uint8Array;
-      if (record.data instanceof Uint8Array) {
-        data = record.data;
-      } else {
-        data = new Uint8Array(record.data.buffer, record.data.byteOffset, record.data.byteLength);
-      }
-      
-      records.push({
-        recordType: record.recordType,
-        mediaType: record.mediaType,
-        data,
-        encoding: record.encoding,
-        lang: record.lang,
-      });
-    }
 
-    return {
-      id: tag.id || '',
-      records,
-      techType: tag.techType || '',
-      maxSize: tag.maxSize || 0,
+  return new Promise((resolve, reject) => {
+    let isResolved = false;
+
+    reader.onreading = (event: NDEFReadingEvent) => {
+      if (isResolved) return;
+      isResolved = true;
+
+      const records: NFCRecord[] = [];
+
+      for (const record of event.message.records) {
+        let data: Uint8Array;
+        if (record.data instanceof Uint8Array) {
+          data = record.data;
+        } else {
+          data = new Uint8Array(record.data.buffer, record.data.byteOffset, record.data.byteLength);
+        }
+
+        records.push({
+          recordType: record.recordType,
+          mediaType: record.mediaType,
+          data,
+          encoding: record.encoding,
+          lang: record.lang,
+        });
+      }
+
+      resolve({
+        id: event.serialNumber || '',
+        records,
+        techType: 'NDEF',
+        maxSize: 0,
+      });
     };
-  } catch (error) {
-    throw error;
-  }
+
+    reader.onreadingerror = (event: Event) => {
+      if (isResolved) return;
+      isResolved = true;
+      reject(new Error('无法读取NFC标签数据，请尝试其他标签'));
+    };
+
+    reader.scan().catch((error) => {
+      if (isResolved) return;
+      isResolved = true;
+      reject(error);
+    });
+  });
 }
 
 export async function writeNFC(records: NFCRecord[]): Promise<void> {
@@ -128,17 +147,29 @@ export async function writeNFC(records: NFCRecord[]): Promise<void> {
   }
 
   const writer = new window.NDEFWriter();
-  
-  const ndefRecords: NDEFRecordInit[] = records.map((record) => ({
-    recordType: record.recordType,
-    mediaType: record.mediaType,
-    data: record.data,
-    encoding: record.encoding,
-    lang: record.lang,
-  }));
+
+  const cleanedRecords = records.map((record) => {
+    const cleaned: NDEFRecordInit = {
+      recordType: record.recordType,
+      encoding: record.encoding,
+      lang: record.lang,
+    };
+
+    if (record.mediaType) {
+      cleaned.mediaType = record.mediaType;
+    }
+
+    if (record.data instanceof Uint8Array) {
+      cleaned.data = record.data;
+    } else {
+      cleaned.data = record.data;
+    }
+
+    return cleaned;
+  });
 
   try {
-    await writer.write(ndefRecords);
+    await writer.write({ records: cleanedRecords });
   } catch (error) {
     throw error;
   }
@@ -175,17 +206,22 @@ export function exportToFile(nfcData: NFCData, filename: string = 'nfc-data.json
     version: '1.0',
     createdAt: new Date().toISOString(),
     nfcData: {
-      ...nfcData,
+      id: nfcData.id,
       records: nfcData.records.map((record) => ({
-        ...record,
+        recordType: record.recordType,
+        mediaType: record.mediaType,
         data: Array.from(record.data),
+        encoding: record.encoding,
+        lang: record.lang,
       })),
+      techType: nfcData.techType,
+      maxSize: nfcData.maxSize,
     },
   };
 
   const blob = new Blob([JSON.stringify(fileData, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
-  
+
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
@@ -200,11 +236,16 @@ export async function importFromFile(file: File): Promise<NFCData> {
   const fileData: NFCFileData = JSON.parse(text);
 
   return {
-    ...fileData.nfcData,
+    id: fileData.nfcData.id,
     records: fileData.nfcData.records.map((record) => ({
-      ...record,
-      data: new Uint8Array(record.data as number[]),
+      recordType: record.recordType,
+      mediaType: record.mediaType,
+      data: new Uint8Array(record.data),
+      encoding: record.encoding,
+      lang: record.lang,
     })),
+    techType: fileData.nfcData.techType,
+    maxSize: fileData.nfcData.maxSize,
   };
 }
 

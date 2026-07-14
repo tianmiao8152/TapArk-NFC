@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Nfc, Smartphone, Shield, Zap, ArrowRight, Sparkles } from 'lucide-react';
+import { Nfc, Smartphone, Shield, Zap } from 'lucide-react';
 import NFCReader from '@/components/NFCReader';
 import NFCWriter from '@/components/NFCWriter';
 import BinaryEditor from '@/components/BinaryEditor';
@@ -40,62 +40,38 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen pb-8 relative overflow-hidden">
-      {/* Background decoration */}
-      <div className="fixed inset-0 -z-10">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-background" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-primary/20 rounded-full blur-[120px] opacity-20" />
-        <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[100px] opacity-10" />
-      </div>
-
-      {/* Environment Detection */}
+    <div className="min-h-screen">
       <EnvironmentDetector />
-
-      {/* Header */}
-      <header className="relative pt-12 pb-16 px-4">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl gradient-primary mb-6 animate-float shadow-lg shadow-primary/30">
-            <Nfc className="w-10 h-10 text-white" />
+      
+      <div className="max-w-4xl mx-auto px-4 py-12">
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-6">
+            <Nfc className="w-8 h-8 text-primary" />
           </div>
-          <h1 className="text-5xl md:text-6xl font-bold mb-4 tracking-tight">
-            <span className="gradient-text">TapArk NFC</span>
-          </h1>
-          <p className="text-xl text-muted-foreground mb-6 text-balance max-w-2xl mx-auto">
+          <h1 className="text-4xl font-bold mb-4">TapArk NFC</h1>
+          <p className="text-lg text-muted-foreground mb-6">
             专业NFC工具，支持读取、写入、二进制编辑和数据管理
           </p>
-          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-            <Sparkles className="w-4 h-4 text-primary" />
-            <span>支持 Chrome for Android 89+</span>
-          </div>
         </div>
-      </header>
 
-      {/* Features Grid */}
-      <section className="max-w-4xl mx-auto px-4 mb-12">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
           {[
-            { icon: Smartphone, label: 'WebNFC', desc: '原生支持', color: 'from-blue-500 to-cyan-500' },
-            { icon: Shield, label: '离线可用', desc: 'PWA支持', color: 'from-green-500 to-emerald-500' },
-            { icon: Zap, label: '高速读写', desc: '实时操作', color: 'from-orange-500 to-amber-500' },
-            { icon: Nfc, label: '全格式', desc: 'NDEF兼容', color: 'from-purple-500 to-pink-500' },
+            { icon: Smartphone, label: 'WebNFC', desc: '原生支持' },
+            { icon: Shield, label: '离线可用', desc: 'PWA支持' },
+            { icon: Zap, label: '高速读写', desc: '实时操作' },
+            { icon: Nfc, label: '全格式', desc: 'NDEF兼容' },
           ].map((feature, index) => (
-            <div
-              key={index}
-              className="glass-card-hover p-5 text-center group cursor-default"
-            >
-              <div className={`inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br ${feature.color} mb-3 group-hover:scale-110 transition-transform duration-300`}>
-                <feature.icon className="w-6 h-6 text-white" />
+            <div key={index} className="card p-5 text-center">
+              <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10 mb-3">
+                <feature.icon className="w-5 h-5 text-primary" />
               </div>
-              <h3 className="font-semibold text-white mb-1">{feature.label}</h3>
-              <p className="text-xs text-muted-foreground">{feature.desc}</p>
+              <h3 className="font-medium mb-1">{feature.label}</h3>
+              <p className="text-sm text-muted-foreground">{feature.desc}</p>
             </div>
           ))}
         </div>
-      </section>
 
-      {/* Main Content */}
-      <main className="max-w-2xl mx-auto px-4 space-y-6">
-        <div className="grid gap-6">
+        <div className="space-y-6">
           <NFCReader onRead={handleRead} />
           <NFCWriter records={nfcData?.records || []} />
           {nfcData && <NFCDataDisplay data={nfcData} />}
@@ -109,15 +85,10 @@ export default function Home() {
             onClear={handleClear}
           />
         </div>
-      </main>
+      </div>
 
-      {/* Footer */}
-      <footer className="text-center py-12 mt-12">
-        <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-          <span>TapArk NFC Tool v1.0.0</span>
-          <span className="w-1 h-1 rounded-full bg-muted-foreground" />
-          <span>支持 Chrome for Android 89+</span>
-        </div>
+      <footer className="text-center py-8 text-sm text-muted-foreground">
+        <p>TapArk NFC Tool v1.0.0</p>
       </footer>
     </div>
   );
